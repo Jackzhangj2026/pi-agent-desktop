@@ -796,7 +796,9 @@ function saveConfig() {
     toolsDeny: $('#tools-deny').value,
     toolsFilterEnabled: $('#tools-filter-toggle').classList.contains('active'),
     autoCompact: $('#auto-compact-toggle').classList.contains('active'),
-    autoRetry: $('#auto-retry-toggle').classList.contains('active')
+    autoRetry: $('#auto-retry-toggle').classList.contains('active'),
+    modelSelect: $('#model-select').value,
+    thinkingLevel: $('#thinking-select').value
   };
   localStorage.setItem('pi-model-config', JSON.stringify(data));
 }
@@ -832,6 +834,14 @@ function restoreConfig() {
     } else if (data.modelId) {
       const f = document.querySelector('.model-id-field');
       if (f) f.value = data.modelId;
+    }
+    if (data.modelSelect) {
+      setTimeout(function() {
+        $('#model-select').value = data.modelSelect;
+      }, 0);
+    }
+    if (data.thinkingLevel) {
+      $('#thinking-select').value = data.thinkingLevel;
     }
   } catch (e) {
     console.error('restoreConfig error:', e);
@@ -1065,4 +1075,3 @@ $('#provider-select').addEventListener('change', function() {
 });
 
 connect();
-
