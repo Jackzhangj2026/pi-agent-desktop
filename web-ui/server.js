@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { spawn, execFile } from 'child_process';
@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3003;
 const PI_PATH = join(dirname(__dirname), 'pi.exe');
 const SESSION_DIR = join(dirname(__dirname), '.sessions');
 const CONFIG_FILE = join(__dirname, '.pi-config.json');
+const SESSIONS_FILE = join(__dirname, 'sessions.json');
 
 if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
 // Scan installed skills
@@ -36,6 +37,23 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 let piProcess = null, piBuffer = '', clients = new Set();
+let sessionCounter = 0;
+let currentSessionId = null;
+
+function saveSessionEntry(msg) {
+  let sessions = [];
+  try { if (existsSync(SESSIONS_FILE)) { let raw = readFileSync(SESSIONS_FILE, 'utf8'); if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); sessions = JSON.parse(raw); if (!Array.isArray(sessions)) sessions = [sessions]; } } catch(e) {}
+  const id = currentSessionId || ('s' + (++sessionCounter));
+  const ex = sessions.find(s => s.id === id);
+  if (ex) {
+    ex.title = ex.title || (msg || '').substring(0, 60);
+    ex.preview = (msg || '').substring(0, 80);
+    ex.mtime = Date.now();
+  } else {
+    sessions.push({ id, title: (msg || '').substring(0, 60), preview: (msg || '').substring(0, 80), mtime: Date.now() });
+  }
+  try { writeFileSync(SESSIONS_FILE, JSON.stringify(sessions)); } catch(e) {}
+}
 
 let piConfig = {
   provider: null, modelId: null, apiKey: null, baseUrl: null,
@@ -56,7 +74,8 @@ const PROVIDER_ENV = {
 };
 
 function piWrite(data) {
-  if (piProcess) piProcess.stdin.write(JSON.stringify(data) + '\n');
+  if (!piProcess) return;
+  try { piProcess.stdin.write(JSON.stringify(data) + '\n'); } catch(e) { console.error('piWrite error:', e.message); }
 }
 
 function broadcast(event) {
@@ -68,9 +87,9 @@ function startPi(config, sessionId, forkId) {
   config = config || piConfig;
   if (piProcess) { piProcess.removeAllListeners('close'); piProcess.kill(); piProcess = null; }
 
-  const args = ['--mode', 'rpc', '--no-session', '--session-dir', SESSION_DIR];
-  if (sessionId) { args.splice(args.indexOf('--no-session'), 1); args.push('--session-id', sessionId); }
-  if (forkId) { args.splice(args.indexOf('--no-session'), 1); args.push('--fork', forkId); }
+  const args = ['--mode', 'rpc', '--session-dir', SESSION_DIR];
+  if (sessionId) { args.push('--session-id', sessionId); }
+  if (forkId) { args.push('--fork', forkId); }
   if (config.modelId) {
     args.push('--model', (config.provider || 'openai') + '/' + config.modelId);
   }
@@ -107,12 +126,14 @@ function startPi(config, sessionId, forkId) {
       const line = piBuffer.slice(0, idx).replace(/\r$/, '');
       piBuffer = piBuffer.slice(idx + 1);
       if (line.trim()) {
-        try { broadcast(JSON.parse(line)); } catch (e) {}
+        try { const p = JSON.parse(line); if (p.type==='response'&&p.data&&p.data.sessionId) currentSessionId=p.data.sessionId; broadcast(p); } catch (e) {}
       }
     }
   });
   piProcess.stderr.on('data', (chunk) => console.error('pi err:', chunk.toString()));
-  piProcess.on('close', (code) => { piProcess = null; broadcast({ type: '_pi_exit', code }); });
+  piProcess.stdin.on('error', (e) => { if (e.code !== 'EPIPE') console.error('pi stdin error:', e.message); });
+  piProcess.on('error', (e) => console.error('pi process error:', e.message));
+  piProcess.on('close', (code) => { piProcess = null; broadcast({ type: '_pi_exit', code }); if (code !== 0) setTimeout(() => { if (!piProcess) startPi(); }, 1500); });
 }
 
 wss.on('connection', (ws) => {
@@ -162,6 +183,14 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (msg.type === 'list_sessions') {
+      let sessions = [];
+      try { if (existsSync(SESSIONS_FILE)) { let raw = readFileSync(SESSIONS_FILE, 'utf8'); if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); sessions = JSON.parse(raw); if (!Array.isArray(sessions)) sessions = [sessions]; } } catch(e) {}
+      sessions.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+      ws.send(JSON.stringify({ type: 'response', command: 'list_sessions', success: true, data: { threads: sessions.slice(0, 50) } }));
+      return;
+    }
+
     if (msg.type === 'export_session') {
       if (piProcess) {
         piProcess.kill(); piProcess = null;
@@ -185,6 +214,8 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: '_error', message: 'PI not running' }));
       return;
     }
+    console.log('PROMPT:', msg.message);
+    if (msg.type === 'prompt' && msg.message) saveSessionEntry(msg.message);
     piWrite(msg);
   });
 
@@ -196,3 +227,4 @@ server.listen(PORT, () => {
   startPi();
   setTimeout(() => { if (piProcess) piWrite({ type: 'get_state' }); }, 1000);
 });
+

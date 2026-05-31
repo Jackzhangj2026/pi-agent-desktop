@@ -61,6 +61,7 @@ function connect() {
     setTimeout(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         sendCmd({ type: 'get_state' });
+        sendCmd({ type: 'list_sessions' });
         sendCmd({ type: 'get_available_models' });
       }
     }, 800);
@@ -96,6 +97,7 @@ function handleEvent(ev) {
         syncModelSelect();
       }
       if (ev.command === 'get_state' && ev.data) updateState(ev.data);
+      if (ev.command === 'list_sessions' && ev.data && ev.data.threads) renderThreads(ev.data.threads);
       if (ev.command === 'get_session_stats' && ev.data) showStats(ev.data);
       if (ev.command === 'get_commands' && ev.data && ev.data.commands) {
         updateCommands(ev.data.commands);
@@ -166,6 +168,7 @@ function handleEvent(ev) {
     case '_connected':
       if (ev.skills) { skillsList = ev.skills; buildCmdList(); }
       sendCmd({ type: 'get_commands' });
+      sendCmd({ type: 'list_sessions' });
       break;
 
     case '_error':
@@ -430,6 +433,46 @@ function renderThreads(threads) {
   }
   if (threads.length === 0) {
     el.threadList.innerHTML = '<div class="thread-empty">暂无会话</div>';
+  }
+}
+
+function startRename(sid, div) {
+  const titleEl = div.querySelector('.thread-title');
+  const oldName = titleEl.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'thread-rename-input';
+  input.value = oldName;
+  input.addEventListener('blur', function() { commitRename(sid, input.value, titleEl); });
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); commitRename(sid, input.value, titleEl); }
+    if (e.key === 'Escape') { commitRename(sid, oldName, titleEl); }
+  });
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function commitRename(sid, name, titleEl) {
+  const input = document.querySelector('.thread-rename-input');
+  const finalName = name || '\u672A\u547D\u540D';
+  const names = JSON.parse(localStorage.getItem('pi_thread_names') || '{}');
+  names[sid] = finalName;
+  localStorage.setItem('pi_thread_names', JSON.stringify(names));
+  const newTitle = document.createElement('div');
+  newTitle.className = 'thread-title';
+  newTitle.textContent = finalName;
+  newTitle.onclick = function() { sendCmd({ type: 'resume_session', sessionId: sid }); };
+  if (input) input.replaceWith(newTitle);
+}
+
+function deleteThread(sid, div) {
+  const deleted = JSON.parse(localStorage.getItem('pi_deleted_sessions') || '[]');
+  if (!deleted.includes(sid)) { deleted.push(sid); }
+  localStorage.setItem('pi_deleted_sessions', JSON.stringify(deleted));
+  div.remove();
+  if (el.threadList.children.length === 0) {
+    el.threadList.innerHTML = '<div class="thread-empty">\u6682\u65E0\u4F1A\u8BDD</div>';
   }
 }
 
@@ -963,3 +1006,4 @@ $('#provider-select').addEventListener('change', function() {
 });
 
 connect();
+

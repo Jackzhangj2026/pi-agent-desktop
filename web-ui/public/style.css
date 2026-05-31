@@ -159,10 +159,16 @@ body {
 
 .thread-list { flex:1; display:flex; flex-direction:column; gap:2px; min-height:0; overflow-y:auto; }
 .thread-empty { font-size:13px; color:var(--text-muted); font-style:italic; text-align:center; padding:20px 10px; }
-.thread-item { padding:7px 10px; border-radius:5px; cursor:pointer; border:1px solid transparent; transition:all 0.12s; }
+.thread-item { position:relative; padding:7px 10px; border-radius:5px; cursor:pointer; border:1px solid transparent; transition:all 0.12s; }
 .thread-item:hover { background:var(--bg-tertiary); border-color:var(--border); }
 .thread-title { font-size:13px; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .thread-preview { font-size:11px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.thread-actions { display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); gap:2px; }
+.thread-item:hover .thread-actions { display:flex; }
+.thread-action-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; color:var(--text-muted); line-height:1; }
+.thread-action-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.thread-rename-input { font-size:13px; padding:2px 4px; border:1px solid var(--accent); border-radius:3px; background:var(--bg-primary); color:var(--text-primary); width:100%; box-sizing:border-box; outline:none; }
 
 #header {
   height:44px; display:flex; align-items:center; justify-content:space-between;
@@ -283,3 +289,4 @@ body {
 
 #tools-filter-group input { width:100%; padding:5px 8px; background:var(--bg-primary); border:1px solid var(--border); border-radius:4px; color:var(--text-primary); font-size:12px; outline:none; }
 #tools-filter-group input:focus { border-color:var(--accent); }
+
