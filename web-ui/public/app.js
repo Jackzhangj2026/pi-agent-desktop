@@ -1,4 +1,4 @@
-/* PI Agent Web UI */
+﻿/* PI Agent Web UI */
 
 // --- State ---
 let ws = null;
@@ -323,23 +323,11 @@ function syncModelSelect() {
   const curVal = el.modelSelect.value;
   el.modelSelect.innerHTML = '<option value="">切换模型...</option>';
 
-  for (let i = 0; i < models.length; i++) {
-    const m = models[i];
-    const opt = document.createElement('option');
-    opt.value = m.provider + '/' + m.id;
-    opt.textContent = (m.name || m.id) + ' (' + m.provider + ')';
-    el.modelSelect.appendChild(opt);
-  }
-
   const customIds = getModelIds();
   if (customIds.length > 0) {
-    const sep = document.createElement('option');
-    sep.disabled = true;
-    sep.textContent = '---- 自定义 ----';
-    el.modelSelect.appendChild(sep);
     for (let j = 0; j < customIds.length; j++) {
       const opt = document.createElement('option');
-      opt.value = 'saved:' + customIds[j];
+      opt.value = customIds[j];
       opt.textContent = customIds[j] + ' (' + $('#provider-select').value + ')';
       el.modelSelect.appendChild(opt);
     }
@@ -891,18 +879,11 @@ $('#clear-btn').addEventListener('click', function() {
 el.modelSelect.addEventListener('change', function() {
   const val = el.modelSelect.value;
   if (!val) return;
-  if (val.startsWith('saved:')) {
-    const id = val.substring(6);
-    const f = document.querySelector('.model-id-field');
-    if (f) f.value = id;
-    applyConfig();
-    return;
-  }
-  const parts = val.split('/');
-  if (parts.length === 2) {
-    sendCmd({ type: 'set_model', provider: parts[0], modelId: parts[1] });
-  }
+  const f = document.querySelector('.model-id-field');
+  if (f) f.value = val;
+  applyConfig();
 });
+
 
 el.thinkingSelect.addEventListener('change', function() {
   sendCmd({ type: 'set_thinking_level', level: el.thinkingSelect.value });
