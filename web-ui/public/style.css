@@ -161,6 +161,7 @@ body {
 .thread-empty { font-size:13px; color:var(--text-muted); font-style:italic; text-align:center; padding:20px 10px; }
 .thread-item { position:relative; padding:7px 10px; border-radius:5px; cursor:pointer; border:1px solid transparent; transition:all 0.12s; }
 .thread-item:hover { background:var(--bg-tertiary); border-color:var(--border); }
+.thread-item.active { background:var(--accent-dim); border-color:var(--accent); }
 .thread-title { font-size:13px; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .thread-preview { font-size:11px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
@@ -169,6 +170,14 @@ body {
 .thread-action-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; color:var(--text-muted); line-height:1; }
 .thread-action-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
 .thread-rename-input { font-size:13px; padding:2px 4px; border:1px solid var(--accent); border-radius:3px; background:var(--bg-primary); color:var(--text-primary); width:100%; box-sizing:border-box; outline:none; }
+
+.thread-context-menu { position:fixed; z-index:200; background:var(--bg-secondary); border:1px solid var(--border); border-radius:6px; padding:4px; min-width:120px; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+.ctx-item { padding:6px 12px; font-size:13px; color:var(--text-primary); border-radius:4px; cursor:pointer; transition:background 0.1s; }
+.ctx-item:hover { background:var(--bg-hover); }
+.ctx-item-danger { color:var(--red); }
+.ctx-item-danger:hover { background:var(--red-dim); }
+
+.thread-action-btn.delete-btn:hover { background:var(--red-dim); color:var(--red); }
 
 #header {
   height:44px; display:flex; align-items:center; justify-content:space-between;

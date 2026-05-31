@@ -11,6 +11,8 @@ let curThinkingBlock = null;
 let pendingExtUI = null;
 let allCmds = [];
 let selectedSlashIdx = -1;
+let threadNames = {};
+let currentSessionId = null;
 
 // --- Element refs ---
 const $ = (s) => document.querySelector(s);
@@ -50,6 +52,21 @@ const el = {
   threadList: $('#thread-list'),
   configMsg: $('#config-msg'),
 };
+
+// --- Restore sessions from localStorage ---
+(function() {
+  try {
+    const cached = localStorage.getItem('pi_sessions_cache');
+    if (cached) {
+      const threads = JSON.parse(cached);
+      if (threads.length > 0) renderThreads(threads);
+    }
+  } catch(e) {}
+  try {
+    const names = localStorage.getItem('pi_thread_names');
+    if (names) threadNames = JSON.parse(names);
+  } catch(e) {}
+})();
 
 // --- WebSocket ---
 function connect() {
@@ -167,8 +184,13 @@ function handleEvent(ev) {
 
     case '_connected':
       if (ev.skills) { skillsList = ev.skills; buildCmdList(); }
+      if (ev.sessions && ev.sessions.length > 0) { renderThreads(ev.sessions); localStorage.setItem('pi_sessions_cache', JSON.stringify(ev.sessions)); }
       sendCmd({ type: 'get_commands' });
       sendCmd({ type: 'list_sessions' });
+      break;
+
+    case 'sessions_updated':
+      if (ev.threads) { renderThreads(ev.threads); localStorage.setItem('pi_sessions_cache', JSON.stringify(ev.threads)); }
       break;
 
     case '_error':

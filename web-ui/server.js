@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { spawn, execFile } from 'child_process';
@@ -39,6 +39,30 @@ const wss = new WebSocketServer({ server });
 let piProcess = null, piBuffer = '', clients = new Set();
 let sessionCounter = 0;
 let currentSessionId = null;
+// In-memory session cache
+let sessionsCache = [];
+
+function broadcastSessions() {
+  sessionsCache.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+  broadcast({ type: 'sessions_updated', threads: sessionsCache.slice(0, 50) });
+}
+
+function updateSessionEntry(msg, sessionName) {
+  const id = currentSessionId || ('s' + (++sessionCounter));
+  const exIdx = sessionsCache.findIndex(s => s.id === id);
+  const now = Date.now();
+  if (exIdx >= 0) {
+    if (sessionName) { sessionsCache[exIdx].title = sessionName; }
+    else if (!sessionsCache[exIdx].title || sessionsCache[exIdx].title === sessionsCache[exIdx].preview) { sessionsCache[exIdx].title = (msg || '').substring(0, 60); }
+    sessionsCache[exIdx].preview = (msg || '').substring(0, 80);
+    sessionsCache[exIdx].mtime = now;
+    const entry = sessionsCache.splice(exIdx, 1)[0];
+    sessionsCache.unshift(entry);
+  } else {
+    sessionsCache.unshift({ id, title: sessionName || (msg || '').substring(0, 60), preview: (msg || '').substring(0, 80), mtime: now });
+  }
+  broadcastSessions();
+}
 
 function saveSessionEntry(msg) {
   let sessions = [];
@@ -184,10 +208,8 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'list_sessions') {
-      let sessions = [];
-      try { if (existsSync(SESSIONS_FILE)) { let raw = readFileSync(SESSIONS_FILE, 'utf8'); if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); sessions = JSON.parse(raw); if (!Array.isArray(sessions)) sessions = [sessions]; } } catch(e) {}
-      sessions.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
-      ws.send(JSON.stringify({ type: 'response', command: 'list_sessions', success: true, data: { threads: sessions.slice(0, 50) } }));
+      sessionsCache.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+      ws.send(JSON.stringify({ type: 'response', command: 'list_sessions', success: true, data: { threads: sessionsCache.slice(0, 50) } }));
       return;
     }
 
@@ -215,7 +237,7 @@ wss.on('connection', (ws) => {
       return;
     }
     console.log('PROMPT:', msg.message);
-    if (msg.type === 'prompt' && msg.message) saveSessionEntry(msg.message);
+    if (msg.type === 'prompt' && msg.message) updateSessionEntry(msg.message);
     piWrite(msg);
   });
 
