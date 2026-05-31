@@ -193,6 +193,10 @@ function handleEvent(ev) {
       if (ev.threads) { renderThreads(ev.threads); localStorage.setItem('pi_sessions_cache', JSON.stringify(ev.threads)); }
       break;
 
+    case 'session_deleted':
+      addSysMsg('会话已删除');
+      break;
+
     case '_error':
       addSysMsg('错误: ' + ev.message);
       break;
@@ -444,13 +448,40 @@ function renderThreads(threads) {
   el.threadList.innerHTML = '';
   for (let i = 0; i < threads.length; i++) {
     const t = threads[i];
+    const displayTitle = threadNames[t.id] || t.title || '未命名';
+    const isActive = currentSessionId && t.id === currentSessionId;
+
     const div = document.createElement('div');
-    div.className = 'thread-item';
-    div.innerHTML = '<div class="thread-title">' + escHTML(t.title || '未命名') + '</div>' +
-      (t.preview ? '<div class="thread-preview">' + escHTML(t.preview) + '</div>' : '');
-    div.onclick = function() {
+    div.className = 'thread-item' + (isActive ? ' active' : '');
+    div.dataset.sessionId = t.id;
+    div.dataset.title = displayTitle;
+
+    div.innerHTML = '<div class="thread-title">' + escHTML(displayTitle) + '</div>' +
+      (t.preview ? '<div class="thread-preview">' + escHTML(t.preview) + '</div>' : '') +
+      '<div class="thread-actions">' +
+        '<button class="thread-action-btn save-btn" title="保存"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>' +
+        '<button class="thread-action-btn delete-btn" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
+      '</div>';
+
+    div.addEventListener('click', function(e) {
+      if (e.target.closest('.thread-action-btn')) return;
       if (t.id) sendCmd({ type: 'resume_session', sessionId: t.id });
-    };
+    });
+
+    div.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      showThreadContextMenu(e.clientX, e.clientY, t.id, div, displayTitle);
+    });
+
+    div.querySelector('.save-btn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      saveThread(t.id);
+    });
+    div.querySelector('.delete-btn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      deleteThread(t.id, div);
+    });
+
     el.threadList.appendChild(div);
   }
   if (threads.length === 0) {
@@ -458,43 +489,49 @@ function renderThreads(threads) {
   }
 }
 
-function startRename(sid, div) {
-  const titleEl = div.querySelector('.thread-title');
-  const oldName = titleEl.textContent;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'thread-rename-input';
-  input.value = oldName;
-  input.addEventListener('blur', function() { commitRename(sid, input.value, titleEl); });
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); commitRename(sid, input.value, titleEl); }
-    if (e.key === 'Escape') { commitRename(sid, oldName, titleEl); }
-  });
-  titleEl.replaceWith(input);
-  input.focus();
-  input.select();
+let threadContextMenu = null;
+function showThreadContextMenu(x, y, sid, div, title) {
+  if (threadContextMenu) threadContextMenu.remove();
+  const menu = document.createElement('div');
+  menu.className = 'thread-context-menu';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.innerHTML =
+    '<div class="ctx-item ctx-save">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px">' +
+        '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' +
+      '</svg>保存' +
+    '</div>' +
+    '<div class="ctx-item ctx-delete">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px">' +
+        '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+      '</svg>删除' +
+    '</div>';
+  document.body.appendChild(menu);
+  threadContextMenu = menu;
+
+  menu.querySelector('.ctx-save').onclick = function() { saveThread(sid); menu.remove(); threadContextMenu = null; };
+  menu.querySelector('.ctx-delete').onclick = function() { deleteThread(sid, div); menu.remove(); threadContextMenu = null; };
+
+  const closeMenu = function(e) { if (!menu.contains(e.target)) { menu.remove(); threadContextMenu = null; document.removeEventListener('click', closeMenu); } };
+  setTimeout(function() { document.addEventListener('click', closeMenu); }, 0);
+
+  // Keep menu in viewport
+  const rect = menu.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+  if (rect.right > window.innerWidth) menu.style.left = (x - rect.width) + 'px';
 }
 
-function commitRename(sid, name, titleEl) {
-  const input = document.querySelector('.thread-rename-input');
-  const finalName = name || '\u672A\u547D\u540D';
-  const names = JSON.parse(localStorage.getItem('pi_thread_names') || '{}');
-  names[sid] = finalName;
-  localStorage.setItem('pi_thread_names', JSON.stringify(names));
-  const newTitle = document.createElement('div');
-  newTitle.className = 'thread-title';
-  newTitle.textContent = finalName;
-  newTitle.onclick = function() { sendCmd({ type: 'resume_session', sessionId: sid }); };
-  if (input) input.replaceWith(newTitle);
+function saveThread(sid) {
+  sendCmd({ type: 'resume_session', sessionId: sid });
+  addSysMsg('已加载会话，可使用底部导出按钮保存到文件');
 }
 
 function deleteThread(sid, div) {
-  const deleted = JSON.parse(localStorage.getItem('pi_deleted_sessions') || '[]');
-  if (!deleted.includes(sid)) { deleted.push(sid); }
-  localStorage.setItem('pi_deleted_sessions', JSON.stringify(deleted));
+  sendCmd({ type: 'delete_session', sessionId: sid });
   div.remove();
   if (el.threadList.children.length === 0) {
-    el.threadList.innerHTML = '<div class="thread-empty">\u6682\u65E0\u4F1A\u8BDD</div>';
+    el.threadList.innerHTML = '<div class="thread-empty">暂无会话</div>';
   }
 }
 

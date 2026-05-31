@@ -213,6 +213,19 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (msg.type === 'delete_session') {
+      const sid = msg.sessionId;
+      if (sid) {
+        const idx = sessionsCache.findIndex(s => s.id === sid);
+        if (idx >= 0) {
+          sessionsCache.splice(idx, 1);
+          broadcastSessions();
+          ws.send(JSON.stringify({ type: 'session_deleted', sessionId: sid }));
+        }
+      }
+      return;
+    }
+
     if (msg.type === 'export_session') {
       if (piProcess) {
         piProcess.kill(); piProcess = null;
