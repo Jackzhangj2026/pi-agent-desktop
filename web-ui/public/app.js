@@ -200,7 +200,12 @@ function handleMsgUpdate(ev) {
       break;
     case 'thinking_start':
       curThinkingBlock = createThinkingBlock();
-      curAssistantMsg.appendChild(curThinkingBlock);
+      const bubble = curAssistantMsg.querySelector(".bubble");
+      if (bubble) {
+        curAssistantMsg.insertBefore(curThinkingBlock, bubble);
+      } else {
+        curAssistantMsg.appendChild(curThinkingBlock);
+      }
       break;
     case 'thinking_delta':
       if (curThinkingBlock) {
@@ -211,7 +216,7 @@ function handleMsgUpdate(ev) {
     case 'thinking_end':
       break;
     case 'toolcall_start':
-      createToolCallCard(delta, curAssistantMsg);
+      createToolLine(delta, curThinkingBlock);
       break;
     case 'toolcall_delta':
       break;
@@ -224,23 +229,22 @@ function handleMsgUpdate(ev) {
 }
 
 function createThinkingBlock() {
-  const block = document.createElement('div');
-  block.className = 'thinking-block';
-  block.innerHTML = '<div class="thinking-toggle"><span class="thinking-caret">&#9654;</span> 思考过程</div><div class="thinking-content"></div>';
-  block.querySelector('.thinking-toggle').addEventListener('click', function() {
-    block.classList.toggle('open');
-  });
+  const block = document.createElement("div");
+  block.className = "thinking-block";
+  block.innerHTML = "<div class=\"thinking-label\">思考过程</div><div class=\"thinking-content\"></div>";
   return block;
 }
 
-function createToolCallCard(delta, parent) {
-  const card = document.createElement('div');
-  card.className = 'tool-call';
-  card.dataset.tcPartial = '1';
-  const iconClass = getToolIconClass(delta.name || '');
-  card.innerHTML = '<div class="tool-header"><div class="tool-header-left"><span class="tool-icon ' + iconClass + '">' + getToolIcon(delta.name || '') + '</span><span class="tool-name">' + esc(delta.name || '工具') + '</span></div><span class="tool-status running">运行中</span></div>';
-  if (delta.id) toolCalls[delta.id] = card;
-  parent.appendChild(card);
+function createToolLine(delta, thinkingBlock) {
+  if (!thinkingBlock) return;
+  const line = document.createElement("div");
+  line.className = "tool-line";
+  line.dataset.toolId = delta.id || "";
+  const iconClass = getToolIconClass(delta.name || "");
+  const icon = getToolIcon(delta.name || "");
+  line.innerHTML = "<span class=\"tool-icon " + iconClass + "\">" + icon + "</span><span class=\"tool-name\">" + esc(delta.name || "工具") + "</span><br><span class=\"tool-status running\">运行中</span>";
+  thinkingBlock.appendChild(line);
+  if (delta.id) toolCalls[delta.id] = line;
   scrollDown();
   saveMessages();
 }
@@ -257,9 +261,10 @@ function getToolIcon(name) {
 
 function finalizeMsg() {
   if (curAssistantMsg) {
-    if (!curAssistantMsg.querySelector('.bubble') && !curAssistantMsg.querySelector('.tool-call') && !curAssistantMsg.querySelector('.thinking-block')) {
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
+    const hasContent = curAssistantMsg.querySelector(".bubble") || curAssistantMsg.querySelector(".thinking-block");
+    if (!hasContent) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
       while (curAssistantMsg.firstChild) bubble.appendChild(curAssistantMsg.firstChild);
       curAssistantMsg.appendChild(bubble);
     }
@@ -272,46 +277,55 @@ function finalizeMsg() {
 
 // --- Tool Execution ---
 function toolStart(ev) {
-  const card = document.createElement('div');
-  card.className = 'tool-call';
-  card.dataset.tcId = ev.toolCallId;
+  const block = curThinkingBlock || el.messages.querySelector(".thinking-block:last-of-type");
+  if (!block) return;
+  const line = document.createElement("div");
+  line.className = "tool-line";
+  line.dataset.toolId = ev.toolCallId;
   const iconClass = getToolIconClass(ev.toolName);
-  card.innerHTML = '<div class="tool-header"><div class="tool-header-left"><span class="tool-icon ' + iconClass + '">' + getToolIcon(ev.toolName) + '</span><span class="tool-name">' + esc(ev.toolName) + '</span></div><span class="tool-status running">运行中</span></div><div class="tool-args">' + esc(JSON.stringify(ev.args)) + '</div>';
-  toolCalls[ev.toolCallId] = card;
-  el.messages.appendChild(card);
+  const icon = getToolIcon(ev.toolName);
+  line.innerHTML = "<span class=\"tool-icon " + iconClass + "\">" + icon + "</span><span class=\"tool-name\">" + esc(ev.toolName) + "</span><br><span class=\"tool-status running\">运行中</span>";
+  if (ev.args) {
+    const argsEl = document.createElement("div");
+    argsEl.className = "tool-line-args";
+    argsEl.textContent = JSON.stringify(ev.args);
+    line.appendChild(argsEl);
+  }
+  block.appendChild(line);
+  toolCalls[ev.toolCallId] = line;
   scrollDown();
   saveMessages();
 }
 
 function toolUpdate(ev) {
-  const card = toolCalls[ev.toolCallId];
-  if (!card) return;
-  let result = card.querySelector('.tool-result');
+  const line = toolCalls[ev.toolCallId];
+  if (!line) return;
+  let result = line.querySelector(".tool-line-result");
   if (!result) {
-    result = document.createElement('div');
-    result.className = 'tool-result';
-    card.appendChild(result);
+    result = document.createElement("div");
+    result.className = "tool-line-result";
+    line.appendChild(result);
   }
   if (ev.partialResult && ev.partialResult.content) {
-    result.textContent = ev.partialResult.content.map(function(c) { return c.text || ''; }).join('');
+    result.textContent = ev.partialResult.content.map(function(c) { return c.text || ""; }).join("");
   }
   scrollDown();
   saveMessages();
 }
 
 function toolEnd(ev) {
-  const card = toolCalls[ev.toolCallId];
-  if (!card) return;
-  const statusEl = card.querySelector('.tool-status');
+  const line = toolCalls[ev.toolCallId];
+  if (!line) return;
+  const statusEl = line.querySelector(".tool-status");
   if (statusEl) {
-    statusEl.className = 'tool-status ' + (ev.isError ? 'error' : 'done');
-    statusEl.textContent = ev.isError ? '错误' : '完成';
+    statusEl.className = "tool-status " + (ev.isError ? "error" : "done");
+    statusEl.textContent = ev.isError ? "错误" : "完成";
   }
-  if (!card.querySelector('.tool-result') && ev.result && ev.result.content) {
-    const result = document.createElement('div');
-    result.className = 'tool-result';
-    result.textContent = ev.result.content.map(function(c) { return c.text || ''; }).join('');
-    card.appendChild(result);
+  if (!line.querySelector(".tool-line-result") && ev.result && ev.result.content) {
+    const result = document.createElement("div");
+    result.className = "tool-line-result";
+    result.textContent = ev.result.content.map(function(c) { return c.text || ""; }).join("");
+    line.appendChild(result);
   }
   delete toolCalls[ev.toolCallId];
   scrollDown();
