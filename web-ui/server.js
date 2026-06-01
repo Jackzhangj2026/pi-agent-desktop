@@ -5,7 +5,7 @@ import { spawn, execFile } from 'child_process';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,6 +60,53 @@ function broadcastSessions() {
   broadcast({ type: 'sessions_updated', threads: sessionsCache.slice(0, 50) });
 }
 
+
+function loadSessionsFromDisk() {
+  try {
+    const files = readdirSync(SESSION_DIR);
+    const loaded = [];
+    for (const f of files) {
+      if (!f.endsWith('.jsonl')) continue;
+      const lastUnderscore = f.lastIndexOf('_');
+      if (lastUnderscore < 0) continue;
+      const id = f.slice(lastUnderscore + 1, -6);
+      if (!id) continue;
+      try {
+        const content = readFileSync(join(SESSION_DIR, f), 'utf8');
+        const lines = content.trim().split('\n');
+        if (lines.length === 0) continue;
+        const first = JSON.parse(lines[0]);
+        const mtime = first.timestamp ? new Date(first.timestamp).getTime() : 0;
+        let title = ''; let preview = '';
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+            let msg = null;
+            if (entry.type === 'message' && entry.message && entry.message.role === 'user' && entry.message.content) {
+              const firstContent = Array.isArray(entry.message.content) ? entry.message.content[0] : entry.message.content;
+              if (firstContent && firstContent.text) msg = firstContent.text;
+            }
+            if (msg) { preview = msg.substring(0, 80); title = msg.substring(0, 60); break; }
+          } catch (_) {}
+        }
+        if (!title) { const ts = first.timestamp ? new Date(first.timestamp) : new Date(0); title = ts.toLocaleString(); preview = title; }
+        loaded.push({ id, title, preview, mtime: mtime || Date.now() });
+      } catch (_) {}
+    }
+    loaded.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    sessionsCache = loaded;
+    try { writeFileSync(SESSIONS_FILE, JSON.stringify(loaded)); } catch (_) {}
+  } catch (e) {
+    try {
+      if (existsSync(SESSIONS_FILE)) {
+        let raw = readFileSync(SESSIONS_FILE, 'utf8');
+        if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+        const parsed = JSON.parse(raw);
+        sessionsCache = Array.isArray(parsed) ? parsed : [parsed];
+      }
+    } catch (_) {}
+  }
+}
 function updateSessionEntry(msg, sessionName) {
   const id = currentSessionId || ('s' + (++sessionCounter));
   const exIdx = sessionsCache.findIndex(s => s.id === id);
@@ -74,6 +121,7 @@ function updateSessionEntry(msg, sessionName) {
   } else {
     sessionsCache.unshift({ id, title: sessionName || (msg || '').substring(0, 60), preview: (msg || '').substring(0, 80), mtime: now });
   }
+  saveSessionEntry(msg);
   broadcastSessions();
 }
 
@@ -255,6 +303,16 @@ wss.on('connection', (ws) => {
           broadcastSessions();
           ws.send(JSON.stringify({ type: 'session_deleted', sessionId: sid }));
         }
+        try {
+          const files = readdirSync(SESSION_DIR);
+          for (const f of files) {
+            if (f.endsWith('.jsonl') && f.includes('_' + sid + '.jsonl')) {
+              unlinkSync(join(SESSION_DIR, f));
+              break;
+            }
+          }
+        } catch (_) {}
+        try { writeFileSync(SESSIONS_FILE, JSON.stringify(sessionsCache)); } catch (_) {}
       }
       return;
     }
@@ -297,13 +355,15 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: '_error', message: 'PI not running' }));
       return;
     }
-    console.log('PROMPT:', msg.message);
+    if (msg.message) console.log('PROMPT:', msg.message);
     if (msg.type === 'prompt' && msg.message) updateSessionEntry(msg.message);
     piWrite(msg);
   });
 
   ws.on('close', () => clients.delete(ws));
 });
+
+loadSessionsFromDisk();
 
 server.listen(PORT, () => {
   console.log('PI Web UI at http://localhost:' + PORT);
