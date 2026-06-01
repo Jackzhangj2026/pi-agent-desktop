@@ -16,7 +16,6 @@ const CONFIG_FILE = join(__dirname, '.pi-config.json');
 const SESSIONS_FILE = join(__dirname, 'sessions.json');
 
 if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
-// Scan installed skills
 const SKILLS_DIR = join(homedir(), '.codex', 'skills');
 let installedSkills = [];
 try {
@@ -26,7 +25,6 @@ try {
 } catch (e) { installedSkills = []; }
 
 const app = express();
-// API: find directory by name using PowerShell search
 app.get('/api/find-dir', (req, res) => {
   const name = req.query.name;
   if (!name) return res.json({ error: 'No name' });
@@ -55,7 +53,6 @@ let piProcess = null, piBuffer = '', clients = new Set();
 let workspaceDir = process.cwd();
 let sessionCounter = 0;
 let currentSessionId = null;
-// In-memory session cache
 let sessionsCache = [];
 
 function broadcastSessions() {
@@ -100,7 +97,6 @@ let piConfig = {
   systemPrompt: null, enabledTools: null, excludedTools: null
 };
 
-// Load saved config on startup
 try { if (existsSync(CONFIG_FILE)) { const c = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')); Object.assign(piConfig, c); } } catch (e) {}
 
 const PROVIDER_ENV = {
@@ -166,7 +162,25 @@ function startPi(config, sessionId, forkId) {
       const line = piBuffer.slice(0, idx).replace(/\r$/, '');
       piBuffer = piBuffer.slice(idx + 1);
       if (line.trim()) {
-        try { const p = JSON.parse(line); if (p.type==='response'&&p.data&&p.data.sessionId) currentSessionId=p.data.sessionId; broadcast(p); } catch (e) {}
+        try {
+        const p = JSON.parse(line);
+        if (p.type==='response' && p.data && p.data.sessionId) {
+          const newId = p.data.sessionId;
+          var renamed = false;
+          for (var i = 0; i < sessionsCache.length; i++) {
+            var s = sessionsCache[i];
+            if (s.id && s.id[0] === 's' && /^s\d+$/.test(s.id)) {
+              var dupIdx = sessionsCache.findIndex(function(x) { return x.id === newId && x !== s; });
+              if (dupIdx >= 0) sessionsCache.splice(dupIdx, 1);
+              s.id = newId;
+              renamed = true;
+            }
+          }
+          currentSessionId = newId;
+          if (renamed) broadcastSessions();
+        }
+        broadcast(p);
+      } catch (e) {}
       }
     }
   });
@@ -193,7 +207,6 @@ wss.on('connection', (ws) => {
         enabledTools: msg.enabledTools || null,
         excludedTools: msg.excludedTools || null
       };
-      // Save to disk
       try { writeFileSync(CONFIG_FILE, JSON.stringify(piConfig, null, 2)); } catch (e) {}
       startPi(piConfig);
       broadcast({
@@ -208,17 +221,21 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'resume_session') {
+      currentSessionId = msg.sessionId;
       startPi(piConfig, msg.sessionId);
       setTimeout(() => {
         if (piProcess) piWrite({ type: 'get_state' });
+        if (piProcess) piWrite({ type: 'get_messages' });
       }, 1500);
       return;
     }
 
     if (msg.type === 'fork_session') {
+      currentSessionId = msg.sessionId;
       startPi(piConfig, null, msg.sessionId);
       setTimeout(() => {
         if (piProcess) piWrite({ type: 'get_state' });
+        if (piProcess) piWrite({ type: 'get_messages' });
       }, 1500);
       return;
     }
@@ -293,4 +310,3 @@ server.listen(PORT, () => {
   startPi();
   setTimeout(() => { if (piProcess) piWrite({ type: 'get_state' }); }, 1000);
 });
-

@@ -177,6 +177,8 @@ body {
 .ctx-item-danger { color:var(--red); }
 .ctx-item-danger:hover { background:var(--red-dim); }
 
+.thread-action-btn.rename-btn:hover { background:var(--accent-dim); color:var(--accent); }
+.thread-action-btn.save-btn:hover { background:var(--green-dim); color:var(--green); }
 .thread-action-btn.delete-btn:hover { background:var(--red-dim); color:var(--red); }
 
 #header {

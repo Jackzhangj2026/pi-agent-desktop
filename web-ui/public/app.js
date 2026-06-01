@@ -1,4 +1,4 @@
-﻿/* PI Agent Web UI */
+/* PI Agent Web UI */
 
 // --- State ---
 let ws = null;
@@ -13,6 +13,7 @@ let allCmds = [];
 let selectedSlashIdx = -1;
 let threadNames = {};
 let currentSessionId = null;
+let pendingSessionResume = false;
 
 // --- Element refs ---
 const $ = (s) => document.querySelector(s);
@@ -119,6 +120,10 @@ function handleEvent(ev) {
       if (ev.command === 'get_state' && ev.data) updateState(ev.data);
       if (ev.command === 'list_sessions' && ev.data && ev.data.threads) renderThreads(ev.data.threads);
       if (ev.command === 'get_session_stats' && ev.data) showStats(ev.data);
+      if (ev.command === 'get_messages' && ev.data && ev.data.messages) {
+        pendingSessionResume = false;
+        renderHistoryMessages(ev.data.messages);
+      }
       if (ev.command === 'get_commands' && ev.data && ev.data.commands) {
         updateCommands(ev.data.commands);
       }
@@ -181,7 +186,7 @@ function handleEvent(ev) {
 
     case '_pi_restarting':
       el.messages.innerHTML = '';
-      showWelcome();
+      if (!pendingSessionResume) showWelcome();
       break;
     case '_pi_exit':
       addSysMsg('PI 进程已退出 (代码 ' + ev.code + ')');
@@ -435,6 +440,14 @@ function updateState(data) {
   }
   el.statusMsgs.textContent = data.messageCount || 0;
 
+  if (data.sessionId) {
+    currentSessionId = data.sessionId;
+    var items = el.threadList.querySelectorAll('.thread-item');
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('active', items[i].dataset.sessionId === currentSessionId);
+    }
+  }
+
   if (data.sessionName) {
     el.sessionName.textContent = data.sessionName;
   }
@@ -453,6 +466,44 @@ function updateState(data) {
     el.statusTokens.classList.remove('hidden');
     el.statusTokenVal.textContent = (data.tokens.total || 0).toLocaleString();
   }
+
+  if (data.messages && data.messages.length > 0) {
+    renderHistoryMessages(data.messages);
+  }
+}
+
+function renderHistoryMessages(messages) {
+  if (!messages || !messages.length) return;
+  removeWelcome();
+  for (var i = 0; i < messages.length; i++) {
+    var msg = messages[i];
+    var div = document.createElement('div');
+    div.className = 'message ' + (msg.role === 'assistant' || msg.role === 'ai' ? 'assistant' : 'user');
+    if (typeof msg.content === 'string') {
+      var bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = msg.content;
+      div.appendChild(bubble);
+    } else if (msg.content && msg.content.length > 0) {
+      for (var j = 0; j < msg.content.length; j++) {
+        var block = msg.content[j];
+        if (block.type === 'text' && block.text) {
+          var bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          bubble.textContent = block.text;
+          div.appendChild(bubble);
+        } else if (block.type === 'thinking' && (block.thinking || block.text)) {
+          var tb = createThinkingBlock();
+          var tc = tb.querySelector('.thinking-content');
+          if (tc) tc.textContent = block.thinking || block.text || '';
+          div.appendChild(tb);
+        }
+      }
+    }
+    el.messages.appendChild(div);
+  }
+  scrollDown();
+  saveMessages();
 }
 
 function renderThreads(threads) {
@@ -470,12 +521,19 @@ function renderThreads(threads) {
     div.innerHTML = '<div class="thread-title">' + escHTML(displayTitle) + '</div>' +
       (t.preview ? '<div class="thread-preview">' + escHTML(t.preview) + '</div>' : '') +
       '<div class="thread-actions">' +
+        '<button class="thread-action-btn rename-btn" title="重命名"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>' +
         '<button class="thread-action-btn save-btn" title="保存"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>' +
         '<button class="thread-action-btn delete-btn" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
       '</div>';
 
     div.addEventListener('click', function(e) {
       if (e.target.closest('.thread-action-btn')) return;
+      pendingSessionResume = true;
+      currentSessionId = t.id;
+      var allItems = el.threadList.querySelectorAll('.thread-item');
+      for (var k = 0; k < allItems.length; k++) {
+        allItems[k].classList.toggle('active', allItems[k].dataset.sessionId === currentSessionId);
+      }
       if (t.id) sendCmd({ type: 'resume_session', sessionId: t.id });
     });
 
@@ -484,6 +542,10 @@ function renderThreads(threads) {
       showThreadContextMenu(e.clientX, e.clientY, t.id, div, displayTitle);
     });
 
+    div.querySelector('.rename-btn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      renameThread(t.id, div);
+    });
     div.querySelector('.save-btn').addEventListener('click', function(e) {
       e.stopPropagation();
       saveThread(t.id);
@@ -508,6 +570,11 @@ function showThreadContextMenu(x, y, sid, div, title) {
   menu.style.left = x + 'px';
   menu.style.top = y + 'px';
   menu.innerHTML =
+    '<div class="ctx-item ctx-rename">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px">' +
+        '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>' +
+      '</svg>重命名' +
+    '</div>' +
     '<div class="ctx-item ctx-save">' +
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px">' +
         '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' +
@@ -521,6 +588,7 @@ function showThreadContextMenu(x, y, sid, div, title) {
   document.body.appendChild(menu);
   threadContextMenu = menu;
 
+  menu.querySelector('.ctx-rename').onclick = function() { renameThread(sid, div); menu.remove(); threadContextMenu = null; };
   menu.querySelector('.ctx-save').onclick = function() { saveThread(sid); menu.remove(); threadContextMenu = null; };
   menu.querySelector('.ctx-delete').onclick = function() { deleteThread(sid, div); menu.remove(); threadContextMenu = null; };
 
@@ -533,7 +601,21 @@ function showThreadContextMenu(x, y, sid, div, title) {
   if (rect.right > window.innerWidth) menu.style.left = (x - rect.width) + 'px';
 }
 
+function renameThread(sid, div) {
+  var currentName = threadNames[sid] || div.dataset.title || '';
+  var newName = prompt('输入新的会话名称：', currentName);
+  if (newName !== null && newName.trim() !== '') {
+    newName = newName.trim();
+    threadNames[sid] = newName;
+    try { localStorage.setItem('pi_thread_names', JSON.stringify(threadNames)); } catch(e) {}
+    var titleEl = div.querySelector('.thread-title');
+    if (titleEl) titleEl.textContent = newName;
+    div.dataset.title = newName;
+  }
+}
+
 function saveThread(sid) {
+  pendingSessionResume = true;
   sendCmd({ type: 'resume_session', sessionId: sid });
   addSysMsg('已加载会话，可使用底部导出按钮保存到文件');
 }
@@ -786,13 +868,21 @@ window.submitExtInput = function() {
 
 // --- Persistence ---
 function saveMessages() {
-  const html = el.messages.innerHTML;
-  if (html) localStorage.setItem('pi-messages', html);
+  var html = el.messages.innerHTML;
+  if (html) {
+    var key = currentSessionId ? 'pi-msgs-' + currentSessionId : 'pi-messages';
+    localStorage.setItem(key, html);
+  }
 }
 
 function restoreMessages() {
-  const html = localStorage.getItem('pi-messages');
-  if (html) el.messages.innerHTML = html;
+  var key = currentSessionId ? 'pi-msgs-' + currentSessionId : 'pi-messages';
+  var html = localStorage.getItem(key);
+  if (!html) html = localStorage.getItem('pi-messages');
+  if (html) {
+    el.messages.innerHTML = html;
+    removeWelcome();
+  }
 }
 
 function saveConfig() {
@@ -999,6 +1089,7 @@ $('#apply-btn').addEventListener('click', applyConfig);
 
 $('#resume-btn').addEventListener('click', function() {
   const id = $('#resume-input').value.trim();
+  pendingSessionResume = true;
   if (id) sendCmd({ type: 'resume_session', sessionId: id });
 });
 
