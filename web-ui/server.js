@@ -26,6 +26,21 @@ try {
 } catch (e) { installedSkills = []; }
 
 const app = express();
+// API: find directory by name using PowerShell search
+app.get('/api/find-dir', (req, res) => {
+  const name = req.query.name;
+  if (!name) return res.json({ error: 'No name' });
+  const script = join(__dirname, 'find-dir.ps1');
+  execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, name], { timeout: 15000 }, (err, stdout) => {
+    const found = (stdout || '').trim();
+    if (found && existsSync(found)) {
+      res.json({ path: found });
+    } else {
+      res.json({ error: 'Not found' });
+    }
+  });
+});
+
 app.use(express.static(join(__dirname, 'public'), {
   setHeaders: (res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -37,6 +52,7 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 let piProcess = null, piBuffer = '', clients = new Set();
+let workspaceDir = process.cwd();
 let sessionCounter = 0;
 let currentSessionId = null;
 // In-memory session cache
@@ -138,7 +154,7 @@ function startPi(config, sessionId, forkId) {
 
   broadcast({ type: '_pi_restarting' });
   piProcess = spawn(PI_PATH, args, {
-    cwd: process.cwd(), stdio: ['pipe', 'pipe', 'pipe'], env
+    cwd: workspaceDir, stdio: ['pipe', 'pipe', 'pipe'], env
   });
   piBuffer = '';
 
@@ -162,7 +178,7 @@ function startPi(config, sessionId, forkId) {
 
 wss.on('connection', (ws) => {
   clients.add(ws);
-  ws.send(JSON.stringify({ type: '_connected', skills: installedSkills }));
+  ws.send(JSON.stringify({ type: '_connected', skills: installedSkills, workspace: workspaceDir }));
 
   ws.on('message', (data) => {
     const msg = JSON.parse(data.toString());
@@ -242,6 +258,21 @@ wss.on('connection', (ws) => {
         startPi(piConfig);
         setTimeout(() => { if (piProcess) piWrite({ type: 'get_state' }); }, 1500);
       });
+      return;
+    }
+
+    if (msg.type === 'set_workspace') {
+      const newPath = msg.workspace;
+      if (newPath && existsSync(newPath)) {
+        workspaceDir = newPath;
+        startPi(piConfig);
+        broadcast({ type: 'workspace_changed', workspace: workspaceDir });
+        setTimeout(() => {
+          if (piProcess) piWrite({ type: 'get_state' });
+        }, 1500);
+      } else {
+        ws.send(JSON.stringify({ type: '_error', message: 'Workspace path does not exist: ' + (newPath || '') }));
+      }
       return;
     }
 

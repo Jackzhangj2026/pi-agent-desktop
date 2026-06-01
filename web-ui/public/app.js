@@ -51,6 +51,9 @@ const el = {
   slashList: $('#slash-list'),
   threadList: $('#thread-list'),
   configMsg: $('#config-msg'),
+  workspacePath: $('#workspace-path'),
+  workspaceDisplay: $('#workspace-display'),
+  workspacePicker: $('#workspace-picker'),
 };
 
 // --- Restore sessions from localStorage ---
@@ -119,6 +122,9 @@ function handleEvent(ev) {
       if (ev.command === 'get_commands' && ev.data && ev.data.commands) {
         updateCommands(ev.data.commands);
       }
+      if (ev.command === 'pick_workspace' && ev.data && ev.data.path) {
+        sendCmd({ type: 'set_workspace', workspace: ev.data.path });
+      }
       break;
 
     case 'agent_start':
@@ -185,6 +191,7 @@ function handleEvent(ev) {
     case '_connected':
       if (ev.skills) { skillsList = ev.skills; buildCmdList(); }
       if (ev.sessions && ev.sessions.length > 0) { renderThreads(ev.sessions); localStorage.setItem('pi_sessions_cache', JSON.stringify(ev.sessions)); }
+      if (ev.workspace) { el.workspacePath.textContent = ev.workspace; localStorage.setItem('pi-workspace', ev.workspace); }
       sendCmd({ type: 'get_commands' });
       sendCmd({ type: 'list_sessions' });
       break;
@@ -195,6 +202,10 @@ function handleEvent(ev) {
 
     case 'session_deleted':
       addSysMsg('会话已删除');
+      break;
+
+    case 'workspace_changed':
+      if (ev.workspace) { el.workspacePath.textContent = ev.workspace; localStorage.setItem('pi-workspace', ev.workspace); }
       break;
 
     case '_error':
@@ -1051,6 +1062,11 @@ el.overlay.addEventListener('click', function() {
 // --- Init ---
 restoreConfig();
 restoreMessages();
+// Restore workspace from localStorage
+(function() {
+  const saved = localStorage.getItem('pi-workspace');
+  if (saved) el.workspacePath.textContent = saved;
+})();
 
 // Auto-save all config fields on input change
 $('#api-key-input').addEventListener('input', function() { saveConfig(); });
@@ -1073,5 +1089,81 @@ $('#provider-select').addEventListener('change', function() {
   syncModelSelect();
   saveConfig();
 });
+
+// Workspace click
+// Workspace - click for folder picker, drag for drop
+if (el.workspaceDisplay) {
+  // Drag & drop: drag a folder from Windows Explorer
+  el.workspaceDisplay.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    el.workspaceDisplay.style.borderColor = 'var(--accent)';
+    el.workspaceDisplay.style.background = 'var(--accent-dim)';
+  });
+  el.workspaceDisplay.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    el.workspaceDisplay.style.borderColor = '';
+    el.workspaceDisplay.style.background = '';
+  });
+  el.workspaceDisplay.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    el.workspaceDisplay.style.borderColor = '';
+    el.workspaceDisplay.style.background = '';
+    extractDirFromFiles(e.dataTransfer.files);
+  });
+
+  // Click: try showDirectoryPicker (native folder picker), fallback to file input
+  el.workspaceDisplay.addEventListener('click', async function() {
+    try {
+      // showDirectoryPicker: proper folder picker, permission prompt is one-time only
+      var dirHandle = await window.showDirectoryPicker();
+      var dirPath = dirHandle.path || dirHandle.fullPath || '';
+      if (dirPath) {
+        if (dirPath !== el.workspacePath.textContent) {
+          sendCmd({ type: 'set_workspace', workspace: dirPath });
+        }
+        return;
+      }
+      // No path property - search by name via server
+      if (dirHandle.name) {
+        try {
+          var resp = await fetch('/api/find-dir?name=' + encodeURIComponent(dirHandle.name));
+          var data = await resp.json();
+          if (data.path && data.path !== el.workspacePath.textContent) {
+            sendCmd({ type: 'set_workspace', workspace: data.path });
+            return;
+          }
+        } catch(e) {}
+      }
+    } catch(err) {
+      // showDirectoryPicker failed - fall back to file input picker
+      if (el.workspacePicker) {
+        el.workspacePicker.click();
+      }
+    }
+  });
+
+  // File input fallback (webkitdirectory for folder picker)
+  if (el.workspacePicker) {
+    el.workspacePicker.addEventListener('change', function() {
+      extractDirFromFiles(el.workspacePicker.files);
+      el.workspacePicker.value = '';
+    });
+  }
+
+  function extractDirFromFiles(files) {
+    if (!files || files.length === 0) return;
+    var filePath = files[0].path || '';
+    if (filePath) {
+      var dir = filePath.replace(/[\\/][^\\/]*$/, '');
+      if (dir && dir !== el.workspacePath.textContent) {
+        sendCmd({ type: 'set_workspace', workspace: dir });
+      }
+    }
+  }
+} else {
+  console.warn('workspace-display not found');
+}
 
 connect();

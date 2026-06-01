@@ -261,6 +261,10 @@ body {
 #model-select { min-width:200px; max-width:320px; }
 #thinking-select { width:90px; }
 
+#workspace-display { display:inline-flex; align-items:center; gap:4px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; transition:all 0.15s; }
+#workspace-display:hover { border-color:var(--accent); color:var(--text-primary); }
+#workspace-display b { font-weight:500; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 .slash-menu { position:absolute; bottom:100%; left:0; right:0; max-height:240px; overflow-y:auto; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px 8px 0 0; display:none; z-index:50; margin-bottom:2px; }
 .slash-menu.visible { display:block; }
 .slash-list { padding:4px; display:flex; flex-direction:column; }
