@@ -1,11 +1,13 @@
-﻿node_modules/
+node_modules/
 .sessions/
 *.log
 server_err.log
 stdout.log
 server.log
+stderr.log
 start_server.lnk
 .pi-config.json
+sessions.json
 _check_*.cjs
 _del_*.cjs
 _find_*.cjs
@@ -16,3 +18,12 @@ dist/
 *.wasm
 package-lock.json
 clankolas.png
+.npm-cache/
+test_ws.mjs
+web-ui/_patch.py
+web-ui/_pick.ps1
+web-ui/_verify.py
+web-ui/test_theme.mjs
+web-ui/public/test_theme_final.cjs
+web-ui/public/debug.cjs
+One-Company/
