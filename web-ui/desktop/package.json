@@ -79,6 +79,10 @@
                                          {
                                              "to":  "assets",
                                              "from":  "../../assets"
+                                         },
+                                         {
+                                             "to":  "icon.ico",
+                                             "from":  "icon.ico"
                                          }
                                      ],
                   "electronDist":  "node_modules\\electron\\dist",

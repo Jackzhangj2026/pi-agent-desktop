@@ -73,6 +73,7 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "PI Agent",
+    icon: app.isPackaged ? path.join(__dirname, "..", "icon.ico") : path.join(__dirname, "icon.ico"),
     backgroundColor: "#0d1117",
     show: false,
     webPreferences: {
