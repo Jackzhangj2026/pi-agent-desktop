@@ -10,8 +10,28 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlink
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PORT = process.env.PORT || 3003;
-const PI_PATH = join(dirname(__dirname), 'pi.exe');
-const SESSION_DIR = join(dirname(__dirname), '.sessions');
+const PI_RESOURCES = process.env.PI_RESOURCES || '';
+const PI_PACKAGED = process.env.PI_PACKAGED === '1';
+function findPiPath() {
+  const candidates = [];
+  if (PI_PACKAGED && PI_RESOURCES) candidates.push(join(PI_RESOURCES, 'pi.exe'));
+  candidates.push(join(__dirname, 'pi.exe'));
+  candidates.push(join(dirname(__dirname), 'pi.exe'));
+  for (const p of candidates) { if (existsSync(p)) return p; }
+  return candidates[0];
+}
+const PI_PATH = findPiPath();
+function findSessionDir() {
+  if (PI_PACKAGED && PI_RESOURCES) {
+    const d = join(PI_RESOURCES, '.sessions');
+    try { mkdirSync(d, { recursive: true }); } catch (_) {}
+    if (existsSync(d)) return d;
+  }
+  const d = join(dirname(__dirname), '.sessions');
+  try { mkdirSync(d, { recursive: true }); } catch (_) {}
+  return d;
+}
+const SESSION_DIR = findSessionDir();
 const CONFIG_FILE = join(__dirname, '.pi-config.json');
 const SESSIONS_FILE = join(__dirname, 'sessions.json');
 
