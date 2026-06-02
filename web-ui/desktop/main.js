@@ -73,7 +73,13 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "PI Agent",
-    icon: app.isPackaged ? path.join(__dirname, "..", "icon.ico") : path.join(__dirname, "icon.ico"),
+    icon: (() => {
+    const rp = path.join(process.resourcesPath, "icon.ico");
+    if (fs.existsSync(rp)) return rp;
+    const local = path.join(__dirname, "icon.ico");
+    if (fs.existsSync(local)) return local;
+    return rp; // fallback
+  })(),
     backgroundColor: "#0d1117",
     show: false,
     webPreferences: {
