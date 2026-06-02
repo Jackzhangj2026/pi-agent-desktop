@@ -1,68 +1,76 @@
-﻿{
-  "name": "pi-agent-desktop",
-  "version": "1.0.0",
-  "description": "PI Agent Desktop",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
-  },
-  "build": {
-    "appId": "com.pi-agent.desktop",
-    "productName": "PI Agent",
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "portable",
-      "icon": "icon.ico"
-    },
-    "portable": {
-      "artifactName": "PI-Agent.exe"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../server.js",
-        "to": "server.js"
-      },
-      {
-        "from": "../public",
-        "to": "public"
-      },
-      {
-        "from": "../node_modules",
-        "to": "node_modules"
-      },
-      {
-        "from": "../sessions.json",
-        "to": "sessions.json"
-      },
-      {
-        "from": "../.pi-config.json",
-        "to": ".pi-config.json"
-      },
-      {
-        "from": "../find-dir.ps1",
-        "to": "find-dir.ps1"
-      },
-      {
-        "from": "../../pi.exe",
-        "to": "pi.exe"
-      },
-      {
-        "from": "../../.sessions",
-        "to": ".sessions"
-      }
-    ]
-  },
-  "devDependencies": {
-    "electron": "^35.0.0",
-    "electron-builder": "^25.0.0"
-  }
+{
+    "name":  "pi-agent-desktop",
+    "version":  "1.0.0",
+    "description":  "PI Agent Desktop",
+    "main":  "main.js",
+    "scripts":  {
+                    "start":  "electron .",
+                    "pack":  "electron-builder --dir",
+                    "dist":  "electron-builder"
+                },
+    "build":  {
+                  "appId":  "com.pi-agent.desktop",
+                  "productName":  "PI Agent",
+                  "directories":  {
+                                      "output":  "dist"
+                                  },
+                  "win":  {
+                              "target":  "portable",
+                              "icon":  "icon.ico",
+                              "signAndEditExecutable":  false
+                          },
+                  "portable":  {
+                                   "artifactName":  "PI-Agent.exe"
+                               },
+                  "files":  [
+                                "main.js",
+                                "preload.js",
+                                "package.json"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "../server.js",
+                                             "to":  "server.js"
+                                         },
+                                         {
+                                             "from":  "../public",
+                                             "to":  "public"
+                                         },
+                                         {
+                                             "from":  "../node_modules",
+                                             "to":  "node_modules"
+                                         },
+                                         {
+                                             "from":  "../sessions.json",
+                                             "to":  "sessions.json"
+                                         },
+                                         {
+                                             "from":  "../.pi-config.json",
+                                             "to":  ".pi-config.json"
+                                         },
+                                         {
+                                             "from":  "../find-dir.ps1",
+                                             "to":  "find-dir.ps1"
+                                         },
+                                         {
+                                             "from":  "../../pi.exe",
+                                             "to":  "pi.exe"
+                                         },
+                                         {
+                                             "from":  "../../.sessions",
+                                             "to":  ".sessions"
+                                         },
+                                         {
+                                             "to":  "node/node.exe",
+                                             "from":  "E:/nodejs/node.exe"
+                                         }
+                                     ],
+                  "electronDist":  "node_modules\\electron\\dist",
+                  "npmRebuild":  false
+              },
+    "devDependencies":  {
+                            "electron":  "^35.0.0",
+                            "electron-builder":  "^25.0.0"
+                        },
+    "author":  "PI Agent"
 }

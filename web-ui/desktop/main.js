@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow, Menu } = require("electron");
+const { app, BrowserWindow, Menu } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const http = require("http");
@@ -25,14 +25,18 @@ function getNodeExe() {
 
 function startServer() {
   const serverJs = getResource("server.js");
-  const cwd = getResource(".");
+  // In packaged mode, server.js lives in resources/, but pi.exe and .sessions
+  // are expected at dirname(dirname(server.js)). Set cwd accordingly.
+  const isPkg = app.isPackaged;
+  const cwd = isPkg ? process.resourcesPath : getResource(".");
 
   console.log("Starting server:", serverJs);
   console.log("Working dir:", cwd);
+  console.log("Packaged:", isPkg);
 
   serverProcess = spawn(getNodeExe(), [serverJs], {
     cwd,
-    env: { ...process.env, PORT: String(PORT) },
+    env: { ...process.env, PORT: String(PORT), PI_PACKAGED: isPkg ? "1" : "0", PI_RESOURCES: isPkg ? process.resourcesPath : "" },
     stdio: ["pipe", "pipe", "pipe"],
   });
 
