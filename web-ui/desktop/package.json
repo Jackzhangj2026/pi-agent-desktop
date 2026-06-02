@@ -63,6 +63,22 @@
                                          {
                                              "to":  "node/node.exe",
                                              "from":  "E:/nodejs/node.exe"
+                                         },
+                                         {
+                                             "to":  "photon_rs_bg.wasm",
+                                             "from":  "../../photon_rs_bg.wasm"
+                                         },
+                                         {
+                                             "to":  "package.json",
+                                             "from":  "../../package.json"
+                                         },
+                                         {
+                                             "to":  "theme",
+                                             "from":  "../../theme"
+                                         },
+                                         {
+                                             "to":  "assets",
+                                             "from":  "../../assets"
                                          }
                                      ],
                   "electronDist":  "node_modules\\electron\\dist",
