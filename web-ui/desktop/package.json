@@ -41,13 +41,17 @@
                                              "to":  "node_modules"
                                          },
                                          {
-                                             "from":  "../sessions.json",
-                                             "to":  "sessions.json"
-                                         },
-                                         {
-                                             "from":  "../.pi-config.json",
-                                             "to":  ".pi-config.json"
-                                         },
+                                         "from": "../sessions.json",
+                                         "to": "sessions.json"
+                                     },
+                                     {
+                                         "from": "../.pi-config.json",
+                                         "to": ".pi-config.json"
+                                     },
+                                     {
+                                         "from": "../.session-file-map.json",
+                                         "to": ".session-file-map.json"
+                                     },
                                          {
                                              "from":  "../find-dir.ps1",
                                              "to":  "find-dir.ps1"
