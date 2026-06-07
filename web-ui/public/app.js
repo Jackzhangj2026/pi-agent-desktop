@@ -1323,6 +1323,26 @@ function setThinkingBudgets(budgets) {
   }
 })();
 
+// ---- Model Config Collapsible ----
+(function() {
+  const header = $('#model-config-header');
+  const body = $('#model-config-body');
+  const arrow = $('#model-config-arrow');
+  if (header && body && arrow) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    
+    header.addEventListener('click', function() {
+      const collapsed = body.classList.toggle('collapsed');
+      arrow.classList.toggle('collapsed-arrow', collapsed);
+      if (collapsed) {
+        body.style.maxHeight = '0px';
+      } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+      }
+    });
+  }
+})();
+
 // --- Apply Config ---
 function applyConfig() {
   const provider = $('#provider-select').value;
