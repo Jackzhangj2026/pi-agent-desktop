@@ -85,10 +85,14 @@
                                              "from":  "../../assets"
                                          },
                                          {
-                                             "to":  "icon.ico",
-                                             "from":  "icon.ico"
-                                         }
-                                     ],
+                                         "to":  "icon.ico",
+                                         "from":  "icon.ico"
+                                     },
+                                     {
+                                         "to":  "skills",
+                                         "from":  "../../skills"
+                                     }
+                                 ],
                   "electronDist":  "node_modules\\electron\\dist",
                   "npmRebuild":  false
               },

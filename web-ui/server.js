@@ -345,8 +345,8 @@ function startPi(config, sessionPath, forkPath) {
     args.push('--fork', forkPath);
   }
 
-  // 全局 skill 目录（项目根目录下，不占 C 盘空间）
-  const globalSkillDir = join(dirname(__dirname), 'skills');
+  // 全局 skill 目录
+  const globalSkillDir = PI_PACKAGED ? join(PI_RESOURCES, 'skills') : join(dirname(__dirname), 'skills');
   if (existsSync(globalSkillDir)) {
     args.push('--skill', globalSkillDir);
   }
